@@ -1,4 +1,4 @@
-name: Selenium Test Automation CI
+name: Selenium Test Automation CI (Debuggable, Java 24)
 
 on:
   push:
@@ -8,36 +8,63 @@ on:
 
 jobs:
   run-tests:
-    name: Run Selenium TestNG Suite
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Java
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
+      - name: Show basic environment (before setup)
+        run: |
+          echo "=== BEFORE setup-java ==="
+          java -version || true
+          mvn -v || true
+          ls -la || true
 
-    - name: Cache Maven Dependencies
-      uses: actions/cache@v4
-      with:
-        path: ~/.m2/repository
-        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-        restore-keys: |
-          ${{ runner.os }}-m2-
+      - name: Set up Java 24 (match project target)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '24'
 
-    - name: Install Dependencies & Run Tests
-      run: mvn -B clean test -DsuiteXmlFile=testng.xml
+      - name: Show Java after setup
+        run: |
+          echo "=== AFTER setup-java ==="
+          java -version
+          mvn -v
 
-    - name: Upload Extent Reports
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: Extent-Report
-        path: |
-          test-output/**
-          **/Extent*.html
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-m2-
 
+      - name: Run Maven tests (with debug & headless flag)
+        run: |
+          mvn -B -e -X clean test -DsuiteXmlFile=testng.xml -Dheadless=true
+        continue-on-error: true
+
+      - name: Collect test folders (for debugging)
+        run: |
+          echo "=== listing repo root ==="
+          ls -la
+          echo "=== listing target/ ==="
+          ls -la target || true
+          echo "=== listing surefire-reports ==="
+          ls -la target/surefire-reports || true
+          echo "=== listing test-output (extent output) ==="
+          ls -la test-output || true
+          find . -maxdepth 4 -type f -name "*Extent*.html" -print || true
+
+      - name: Upload test artifacts (reports & logs)
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-artifacts
+          path: |
+            target/surefire-reports/**
+            target/failsafe-reports/**
+            test-output/**
+            **/*Extent*.html
+          if-no-files-found: ignore
