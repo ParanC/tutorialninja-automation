@@ -1,1 +1,43 @@
+name: Selenium Test Automation CI
+
+on:
+  push:
+    branches: [ "main", "master", "develop" ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  run-tests:
+    name: Run Selenium TestNG Suite
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Cache Maven Dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-m2-
+
+    - name: Install Dependencies & Run Tests
+      run: mvn -B clean test -DsuiteXmlFile=testng.xml
+
+    - name: Upload Extent Reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Extent-Report
+        path: |
+          test-output/**
+          **/Extent*.html
 
